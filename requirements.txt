@@ -1,4 +1,4 @@
-aiogram==3.15.0
+aiogram==3.31.0   # Bot API 9.4: style и icon_custom_emoji_id у кнопок
 aiohttp==3.10.11
 PyYAML==6.0.2
 python-dotenv==1.0.1

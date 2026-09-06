@@ -74,6 +74,9 @@ def buttons(cfg: Config) -> set[str]:
                     data.add(button.callback_data)
                 if button.callback_data and len(button.callback_data.encode()) > 64:
                     raise AssertionError(f"callback_data длиннее 64 байт: {button.callback_data}")
+                if button.style not in (None, "danger", "success", "primary", "link"):
+                    raise AssertionError(f"недопустимый style «{button.style}» "
+                                         f"у кнопки «{button.text}»")
     return data
 
 

@@ -153,6 +153,14 @@ class Config:
             return f'<tg-emoji emoji-id="{custom}">{base}</tg-emoji>'
         return base
 
+    def icon(self, key: str) -> str | None:
+        """custom_emoji_id для иконки на кнопке (Bot API 9.4) или None."""
+        return str(self.get(f"decor.custom_emoji.{key}", "") or "").strip() or None
+
+    def style(self, name: str) -> str | None:
+        """Цвет кнопки: danger / success / primary. None — стандартный вид."""
+        return name if self.get("decor.button_styles", True) else None
+
     def sticker(self, key: str) -> str:
         return str(self.get(f"decor.stickers.{key}", "") or "").strip()
 

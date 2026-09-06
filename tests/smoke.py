@@ -124,6 +124,47 @@ async def main() -> int:
         check("admin" not in cfg.text("start").lower() and
               "админ" not in cfg.text("menu").lower(), "меню не упоминает админку")
 
+        print("Цветные кнопки и премиум-эмодзи (Bot API 9.4)")
+        from aiogram.exceptions import TelegramBadRequest
+        from aiogram.methods import SendMessage
+        from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+        from bot.services.emoji_guard import CustomEmojiGuard
+
+        styles = {b.style for row in ui.payment_methods(cfg, 1, True).inline_keyboard
+                  for b in row}
+        check(styles <= {None, "danger", "success", "primary", "link"},
+              "используются только допустимые значения style")
+        check("primary" in styles and "danger" in styles, "акценты расставлены")
+        cfg.data["decor"]["button_styles"] = False
+        off = {b.style for row in ui.payment_methods(cfg, 1, True).inline_keyboard for b in row}
+        check(off == {None}, "флаг button_styles выключает цвета целиком")
+        cfg.data["decor"]["button_styles"] = True
+
+        guard, calls = CustomEmojiGuard(), []
+
+        async def fake_request(bot, method):
+            first = method.reply_markup.inline_keyboard[0][0]
+            calls.append((method.text, first.icon_custom_emoji_id, first.style))
+            if len(calls) == 1:
+                raise TelegramBadRequest(method=method, message="Bad Request: CUSTOM_EMOJI_INVALID")
+            return "ok"
+
+        def sample() -> SendMessage:
+            return SendMessage(chat_id=1, text='Тест <tg-emoji emoji-id="1">👍</tg-emoji>',
+                               reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+                                   InlineKeyboardButton(text="Оплатить", callback_data="x",
+                                                        style="success",
+                                                        icon_custom_emoji_id="2")]]))
+
+        await guard(fake_request, None, sample())
+        check(len(calls) == 2, "битый premium-эмодзи вызывает ровно один повтор")
+        check("<tg-emoji" not in calls[1][0] and calls[1][1] is None,
+              "повтор уходит без кастомных эмодзи")
+        check(calls[1][2] == "success", "цвет кнопки при этом сохраняется")
+        await guard(fake_request, None, sample())
+        check(len(calls) == 3 and calls[2][1] is None,
+              "дальше эмодзи вычищаются превентивно, без лишнего запроса")
+
         print("Статистика и роутеры")
         stats = await repo.stats()
         check(stats["orders"] == 2 and stats["done"] == 1, "статистика считается")

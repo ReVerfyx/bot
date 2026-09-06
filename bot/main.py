@@ -21,6 +21,7 @@ from .config import Config, Settings
 from .handlers import build_router
 from .middlewares import ThrottleMiddleware, UserMiddleware
 from .services.cryptobot import CryptoPay
+from .services.emoji_guard import CustomEmojiGuard
 from .services.rates import Rates
 from .storage import Repository
 
@@ -67,6 +68,8 @@ async def run() -> None:
 
     bot = Bot(settings.bot_token,
               default=DefaultBotProperties(parse_mode=ParseMode.HTML, link_preview_is_disabled=True))
+    # если премиум-эмодзи окажутся недоступны, бот продолжит работать на обычных
+    bot.session.middleware(CustomEmojiGuard())
     dispatcher = Dispatcher(storage=MemoryStorage())
     dispatcher["cfg"] = cfg
     dispatcher["repo"] = repo
