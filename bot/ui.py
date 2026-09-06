@@ -249,7 +249,8 @@ def admin_menu(cfg: Config) -> InlineKeyboardMarkup:
         [btn("📥 Заявки на проверке", "a:pending"), btn("📋 Все заказы", "a:orders")],
         [btn("🎫 Обращения", "a:tickets"), btn("📦 Склад кодов", "a:stock")],
         [btn("📊 Статистика", "a:stats"), btn("📢 Рассылка", "a:cast")],
-        [btn("🚫 Бан / разбан", "a:ban", cfg.style("danger"))],
+        [btn("🩺 Диагностика", "a:health"),
+         btn("🚫 Бан / разбан", "a:ban", cfg.style("danger"))],
         back(cfg),
     )
 

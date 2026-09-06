@@ -138,7 +138,7 @@ bot/
 ├── middlewares.py     регистрация юзера, бан-лист, техработы, антифлуд
 ├── states.py          FSM
 ├── handlers/          menu · orders · payment · activation · split · support · admin · fallback
-├── services/          cryptobot · rates · split_parser · emoji_guard
+├── services/          cryptobot · rates · split_parser · emoji_guard · health
 └── storage/           models · backends (GitHub Issues / файлы) · repository
 ```
 

@@ -15,6 +15,8 @@ from aiogram.types import CallbackQuery, Message, TelegramObject
 from .. import ui
 from ..common import admin_order_text, confirm_payment, safe_send, show
 from ..config import Config
+from ..services.cryptobot import CryptoPay
+from ..services.health import report
 from ..states import AdminFlow
 from ..storage import Repository
 from ..storage.models import (
@@ -47,6 +49,23 @@ async def _menu(event: Message | CallbackQuery, cfg: Config, repo: Repository) -
     tickets = await repo.open_tickets()
     await show(event, cfg.text("admin_menu", pending=len(pending), tickets=len(tickets)),
                ui.admin_menu(cfg))
+
+
+@router.message(Command("health"))
+async def cmd_health(message: Message, cfg: Config, repo: Repository,
+                     crypto: CryptoPay) -> None:
+    if cfg.stealth:
+        with contextlib.suppress(TelegramBadRequest):
+            await message.delete()
+    await message.answer(await report(cfg, repo, crypto, message.bot),
+                         reply_markup=ui.admin_menu(cfg))
+
+
+@router.callback_query(F.data == "a:health")
+async def cb_health(call: CallbackQuery, cfg: Config, repo: Repository,
+                    crypto: CryptoPay) -> None:
+    await show(call, await report(cfg, repo, crypto, call.bot), ui.admin_menu(cfg))
+    await call.answer()
 
 
 @router.message(StateFilter(None), SecretPhrase())

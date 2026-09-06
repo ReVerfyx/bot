@@ -176,6 +176,23 @@ async def main() -> int:
         check(len(calls) == 3 and calls[2][1] is None,
               "дальше эмодзи вычищаются превентивно, без лишнего запроса")
 
+        print("Самодиагностика")
+        from bot.services.cryptobot import CryptoPay
+        from bot.services.health import report
+        text = await report(cfg, repo, CryptoPay(""), None, 20700)
+        check("Диагностика" in text, "сводка формируется без обращения к сети")
+        check("заглушки не заменены" in text, "ловит незаполненные адреса кошельков")
+        check("USDT · TRC-20" in text and "BTC" in text,
+              "видит заглушки и в верхнем, и в нижнем регистре")
+        check("данные пропадут при рестарте" in text,
+              "предупреждает о локальном хранилище вместо GitHub Issues")
+        check("только ручная оплата" in text, "сообщает, что CryptoBot не подключён")
+        cfg.data["payment"]["manual"]["wallets"] = [
+            {"title": "USDT · TRC-20", "asset": "USDT", "address": "TReal1Address2Here3"}]
+        ok = await report(cfg, repo, CryptoPay("1:x"), None, 0)
+        check("заглушки не заменены" not in ok, "с настоящими адресами замечаний нет")
+        check("подключён" in ok, "видит подключённый CryptoBot")
+
         print("Статистика и роутеры")
         stats = await repo.stats()
         check(stats["orders"] == 2 and stats["done"] == 1, "статистика считается")

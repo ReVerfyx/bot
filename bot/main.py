@@ -22,6 +22,7 @@ from .handlers import build_router
 from .middlewares import ThrottleMiddleware, UserMiddleware
 from .services.cryptobot import CryptoPay
 from .services.emoji_guard import CustomEmojiGuard
+from .services.health import report
 from .services.rates import Rates
 from .storage import Repository
 
@@ -96,6 +97,10 @@ async def run() -> None:
         me = await bot.get_me()
         log.info("Запущен @%s (id=%s), сессия на %d с", me.username, me.id, settings.run_duration)
         await bot.delete_webhook(drop_pending_updates=False)
+        if cfg.get("access.notify_start", True):
+            from .common import notify_admins
+            await notify_admins(bot, cfg, await report(cfg, repo, crypto, bot,
+                                                       settings.run_duration))
         await dispatcher.start_polling(bot, handle_signals=False,
                                        allowed_updates=dispatcher.resolve_used_update_types())
     except TelegramUnauthorizedError:
