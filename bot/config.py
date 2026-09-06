@@ -145,16 +145,23 @@ class Config:
         """Обычное эмодзи — годится и для кнопок, и для текста."""
         return str(self.get(f"decor.emoji.{key}", "") or "")
 
+    @property
+    def custom_emoji_on(self) -> bool:
+        """Премиум-эмодзи включены (нужен Telegram Premium у владельца бота)."""
+        return bool(self.get("decor.custom_emoji_enabled", False))
+
     def deco(self, key: str) -> str:
-        """Эмодзи для текста: премиум custom emoji, если задан id."""
+        """Эмодзи для текста: премиум custom emoji, если включены и задан id."""
         base = self.emoji(key)
-        custom = str(self.get(f"decor.custom_emoji.{key}", "") or "").strip()
+        custom = self.icon(key)
         if custom and base:
             return f'<tg-emoji emoji-id="{custom}">{base}</tg-emoji>'
         return base
 
     def icon(self, key: str) -> str | None:
         """custom_emoji_id для иконки на кнопке (Bot API 9.4) или None."""
+        if not self.custom_emoji_on:
+            return None
         return str(self.get(f"decor.custom_emoji.{key}", "") or "").strip() or None
 
     def style(self, name: str) -> str | None:

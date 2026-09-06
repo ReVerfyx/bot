@@ -140,6 +140,17 @@ async def main() -> int:
         check(off == {None}, "флаг button_styles выключает цвета целиком")
         cfg.data["decor"]["button_styles"] = True
 
+        check(not cfg.custom_emoji_on, "премиум-эмодзи выключены (нет Premium)")
+        cfg.data["decor"]["custom_emoji"]["pay"] = "5285430309720966085"
+        check(cfg.icon("pay") is None and "<tg-emoji" not in cfg.deco("pay"),
+              "заполненный id не используется, пока флаг выключен")
+        check(ui.product_card(cfg, "sc7").inline_keyboard[0][0].style == "success",
+              "цвета кнопок работают и без Premium")
+        cfg.data["decor"]["custom_emoji_enabled"] = True
+        check("<tg-emoji" in cfg.deco("pay") and cfg.icon("pay"),
+              "флаг включает премиум-эмодзи разом в текстах и на кнопках")
+        cfg.data["decor"]["custom_emoji_enabled"] = False
+
         guard, calls = CustomEmojiGuard(), []
 
         async def fake_request(bot, method):
