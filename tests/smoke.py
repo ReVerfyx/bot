@@ -1,0 +1,128 @@
+"""Оффлайн-прогон логики: хранилище, заказы, склад, сплит-комиссия, роутеры.
+
+Запуск: BOT_TOKEN=1:test python -m tests.smoke
+"""
+
+from __future__ import annotations
+
+import asyncio
+import os
+import shutil
+import sys
+import tempfile
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+os.environ.setdefault("BOT_TOKEN", "1:test")
+
+from bot.config import Config, Settings  # noqa: E402
+from bot.handlers import build_router  # noqa: E402
+from bot.services.split_parser import domain_allowed, extract_url, parse_page  # noqa: E402
+from bot.storage import Order, Repository, Ticket  # noqa: E402
+from bot.storage.backends import LocalBackend  # noqa: E402
+from bot.storage.models import AWAITING_CHECK, DONE, PAID, REFUND_REQUESTED  # noqa: E402
+
+checks = 0
+
+
+def check(condition: bool, label: str) -> None:
+    global checks
+    checks += 1
+    if not condition:
+        raise AssertionError(f"провал: {label}")
+    print(f"  ✓ {label}")
+
+
+async def main() -> int:
+    tmp = Path(tempfile.mkdtemp(prefix="bot-smoke-"))
+    try:
+        cfg = Config.load(Settings.from_env())
+        repo = Repository(LocalBackend(tmp))
+        await repo.start()
+
+        print("Пользователи")
+        user = await repo.touch_user(777, "Иван Петров", "ivan")
+        check((await repo.get_user(777)).username == "ivan", "пользователь сохранён")
+        check(len(await repo.all_users()) == 1, "перечисление пользователей")
+
+        print("Склад промокодов")
+        await repo.stock_add("sc7", ["CODE-A", "CODE-B", "CODE-A"])
+        check(await repo.stock_count("sc7") == 2, "дубликаты кодов отсеяны")
+        check(await repo.stock_take("sc7") == "CODE-A", "код выдан из склада")
+        check(await repo.stock_count("sc7") == 1, "код списан со склада")
+        await repo.stock_return("sc7", "CODE-A")
+        check(await repo.stock_count("sc7") == 2, "код возвращён на склад")
+
+        print("Заказ на самокат")
+        item = cfg.section_items("scooters")[1]
+        order = await repo.create_order(Order(
+            user_id=user.id, user_name=user.name, username=user.username,
+            kind="scooter", product_id=str(item["id"]), title=str(item["title"]),
+            amount=int(item["price"]), currency=cfg.currency,
+        ))
+        check(order.id > 0, "заказу присвоен номер")
+        check(order.id in (await repo.get_user(777)).orders, "заказ привязан к пользователю")
+        order.status = AWAITING_CHECK
+        await repo.save_order(order, event="клиент сообщил об оплате")
+        check(len(await repo.pending_orders()) == 1, "заказ попал в очередь проверки")
+        order.status = PAID
+        await repo.save_order(order, event="оплата подтверждена")
+        check(len(await repo.refundable_orders(777, 72)) == 1, "возврат доступен в окне")
+        check(len(await repo.refundable_orders(777, 0)) == 0, "вне окна возврат недоступен")
+        order.status = DONE
+        await repo.save_order(order, event="выдан доступ")
+        restored = await repo.get_order(order.id)
+        check(restored is not None and restored.status == DONE, "статус перечитан из хранилища")
+        check(len(restored.history) >= 4, "история событий пишется")
+
+        print("Сплит")
+        check(cfg.split_fee(59_999) == 2000, "комиссия нижнего тарифа")
+        check(cfg.split_fee(60_000) == 2000, "граница тарифа включительно")
+        check(cfg.split_fee(60_001) == 5000, "комиссия верхнего тарифа")
+        check(cfg.split_fee(150_001) is None, "выше лимита — отказ")
+        check(domain_allowed("https://market.yandex.ru/p/1", cfg.get("split.allowed_domains")),
+              "домен Яндекса разрешён")
+        check(not domain_allowed("https://market.yandex.ru.evil.com/p", cfg.get("split.allowed_domains")),
+              "поддельный домен отсечён")
+        check(extract_url("смотри https://ya.cc/abc пж") == "https://ya.cc/abc", "ссылка извлечена")
+        parsed = parse_page("https://market.yandex.ru/p", """
+            <script type="application/ld+json">
+            {"@type":"Product","name":"Пылесос","offers":{"price":"12 990"}}</script>""")
+        check(parsed.price == 12990 and parsed.title == "Пылесос", "цена и название распознаны")
+
+        split_order = await repo.create_order(Order(
+            user_id=user.id, kind="split", product_id="split", title="Сплит · Пылесос",
+            amount=cfg.split_fee(12990) or 0, item_price=12990,
+            item_url="https://market.yandex.ru/p", delivery_title="Курьером",
+            address="Москва, Тверская 1, кв 2",
+        ))
+        check(split_order.amount == 2000, "к оплате только комиссия сервиса")
+
+        print("Возврат и обращения")
+        split_order.status = REFUND_REQUESTED
+        await repo.save_order(split_order, event="запрошен возврат")
+        ticket = await repo.create_ticket(Ticket(
+            user_id=user.id, kind="refund", order_id=split_order.id, text="не подошёл товар"))
+        check(ticket.id > 0 and len(await repo.open_tickets()) == 1, "обращение создано")
+        ticket.status = "closed"
+        await repo.save_ticket(ticket)
+        check(len(await repo.open_tickets()) == 0, "обращение закрывается")
+
+        print("Статистика и роутеры")
+        stats = await repo.stats()
+        check(stats["orders"] == 2 and stats["done"] == 1, "статистика считается")
+        check(stats["revenue"] == int(item["price"]), "оборот по выполненным заказам")
+        router = build_router()
+        names = [r.name for r in router.sub_routers]
+        check(len(names) == 8 and names[-1] == "fallback", f"роутеры собраны: {names}")
+        await repo.close()
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+    print(f"\n✅ Все проверки пройдены ({checks})")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(asyncio.run(main()))

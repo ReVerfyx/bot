@@ -1,0 +1,278 @@
+"""Клавиатуры и мелкая визуальная обвязка.
+
+Премиум-эмодзи Telegram поддерживает только в тексте сообщений, поэтому
+в кнопках используются обычные эмодзи из decor.emoji, а custom_emoji_id
+подставляется в тексты через Config.deco().
+"""
+
+from __future__ import annotations
+
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+from .config import Config
+from .storage.models import Order
+
+Row = list[InlineKeyboardButton]
+
+
+def btn(text: str, data: str) -> InlineKeyboardButton:
+    return InlineKeyboardButton(text=text, callback_data=data)
+
+
+def url_btn(text: str, url: str) -> InlineKeyboardButton:
+    return InlineKeyboardButton(text=text, url=url)
+
+
+def kb(*rows: Row) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[r for r in rows if r])
+
+
+def back(cfg: Config, target: str = "m:main", text: str = "В меню") -> Row:
+    return [btn(f"{cfg.emoji('back')} {text}", target)]
+
+
+# ════════════════════════════ меню ══════════════════════════════════════════
+def main_menu(cfg: Config, is_admin: bool = False) -> InlineKeyboardMarkup:
+    e = cfg.emoji
+    rows: list[Row] = []
+    if cfg.section_items("scooters"):
+        rows.append([btn(f"{e('scooter')} Самокаты Яндекс Go", "m:scooters")])
+    second: Row = []
+    if cfg.get("split.enabled", True):
+        second.append(btn(f"{e('split')} Выкуп по Сплиту", "m:split"))
+    if cfg.get("goods.enabled", True):
+        second.append(btn(f"{e('bag')} Товары с Яндекса", "m:goods"))
+    rows.append(second)
+    rows.append([btn(f"{e('orders')} Мои заказы", "m:orders"),
+                 btn(f"{e('support')} Поддержка", "m:support")])
+    tail: Row = []
+    if cfg.get("refund.enabled", True):
+        tail.append(btn(f"{e('refund')} Возврат средств", "m:refund"))
+    tail.append(btn(f"{e('info')} О сервисе", "m:about"))
+    rows.append(tail)
+    if is_admin:
+        rows.append([btn(f"{e('admin')} Админ-панель", "a:menu")])
+    return kb(*rows)
+
+
+def catalog(cfg: Config, section: str) -> InlineKeyboardMarkup:
+    rows: list[Row] = []
+    for item in cfg.section_items(section):
+        emoji = item.get("emoji") or cfg.emoji("bag")
+        badge = f" · {item['badge']}" if item.get("badge") else ""
+        rows.append([btn(f"{emoji} {item.get('title')}{badge} — {cfg.money(item.get('price', 0))}",
+                         f"p:{item.get('id')}")])
+    if section == "goods" and cfg.get("split.enabled", True):
+        rows.append([btn(f"{cfg.emoji('split')} Нужного нет — выкуп по ссылке", "m:split")])
+    rows.append(back(cfg))
+    return kb(*rows)
+
+
+def product_card(cfg: Config, product_id: str, in_stock: bool = True) -> InlineKeyboardMarkup:
+    section, item = cfg.find_product(product_id)
+    buy: Row = [btn(f"{cfg.emoji('pay')} Оформить заказ", f"buy:{product_id}")] if in_stock else \
+               [btn(f"{cfg.emoji('clock')} Нет в наличии", "nop")]
+    return kb(buy, back(cfg, f"m:{section or 'scooters'}", "Назад"))
+
+
+def about_menu(cfg: Config) -> InlineKeyboardMarkup:
+    rows: list[Row] = []
+    links: Row = []
+    if cfg.get("brand.channel_url"):
+        links.append(url_btn("📣 Канал", str(cfg.get("brand.channel_url"))))
+    if cfg.get("brand.reviews_url"):
+        links.append(url_btn("⭐️ Отзывы", str(cfg.get("brand.reviews_url"))))
+    if links:
+        rows.append(links)
+    rows.append(back(cfg))
+    return kb(*rows)
+
+
+# ════════════════════════════ оплата ════════════════════════════════════════
+def payment_methods(cfg: Config, order_id: int, cryptobot: bool) -> InlineKeyboardMarkup:
+    rows: list[Row] = []
+    if cryptobot and cfg.get("payment.cryptobot.enabled", True):
+        rows.append([btn(f"{cfg.emoji('crypto')} Оплатить через CryptoBot", f"pm:{order_id}:cryptobot")])
+    if cfg.get("payment.manual.enabled", True):
+        rows.append([btn(f"{cfg.emoji('wallet')} Перевод на кошелёк", f"pm:{order_id}:manual")])
+    rows.append([btn(f"{cfg.emoji('cross')} Отменить заказ", f"cancel:{order_id}")])
+    rows.append(back(cfg))
+    return kb(*rows)
+
+
+def wallets(cfg: Config, order_id: int) -> InlineKeyboardMarkup:
+    rows: list[Row] = []
+    for idx, wallet in enumerate(cfg.get("payment.manual.wallets", []) or []):
+        rows.append([btn(f"{cfg.emoji('crypto')} {wallet.get('title')}", f"pw:{order_id}:{idx}")])
+    rows.append([btn(f"{cfg.emoji('back')} Назад", f"pm:{order_id}:back")])
+    return kb(*rows)
+
+
+def invoice_keyboard(cfg: Config, order: Order) -> InlineKeyboardMarkup:
+    rows: list[Row] = []
+    if order.invoice_url:
+        rows.append([url_btn(f"{cfg.emoji('pay')} Оплатить", order.invoice_url)])
+        rows.append([btn(f"{cfg.emoji('check')} Проверить оплату", f"chk:{order.id}")])
+    rows.append([btn(f"{cfg.emoji('cross')} Отменить", f"cancel:{order.id}")])
+    rows.append(back(cfg))
+    return kb(*rows)
+
+
+def manual_keyboard(cfg: Config, order_id: int) -> InlineKeyboardMarkup:
+    return kb(
+        [btn(f"{cfg.emoji('check')} Я оплатил", f"paid:{order_id}")],
+        [btn(f"{cfg.emoji('back')} Другая монета", f"pm:{order_id}:manual")],
+        [btn(f"{cfg.emoji('cross')} Отменить", f"cancel:{order_id}")],
+    )
+
+
+# ════════════════════════════ активация ═════════════════════════════════════
+def activation_menu(cfg: Config, order_id: int) -> InlineKeyboardMarkup:
+    """Меню, которое открывается клиенту после подтверждения оплаты."""
+    return kb(
+        [btn(f"{cfg.emoji('scooter')} Отправить номер самоката", f"act:{order_id}:num")],
+        [btn(f"{cfg.emoji('photo')} Отправить скриншот", f"act:{order_id}:pic")],
+        [btn(f"{cfg.emoji('support')} Нужна помощь", "m:support")],
+        back(cfg),
+    )
+
+
+def order_open(cfg: Config, order_id: int) -> InlineKeyboardMarkup:
+    return kb([btn(f"{cfg.emoji('orders')} Открыть заказ", f"ord:{order_id}")])
+
+
+# ════════════════════════════ сплит ═════════════════════════════════════════
+def split_start(cfg: Config) -> InlineKeyboardMarkup:
+    return kb([btn(f"{cfg.emoji('link')} Отправить ссылку", "sp:go")], back(cfg))
+
+
+def split_confirm(cfg: Config) -> InlineKeyboardMarkup:
+    return kb(
+        [btn(f"{cfg.emoji('check')} Всё верно, продолжить", "sp:conf")],
+        [btn(f"{cfg.emoji('link')} Другая ссылка", "sp:go")],
+        back(cfg),
+    )
+
+
+def split_delivery(cfg: Config) -> InlineKeyboardMarkup:
+    rows: list[Row] = []
+    for method in cfg.get("split.delivery", []) or []:
+        rows.append([btn(f"{method.get('emoji', '')} {method.get('title')}",
+                         f"sp:dlv:{method.get('id')}")])
+    rows.append(back(cfg))
+    return kb(*rows)
+
+
+# ════════════════════════════ заказы клиента ════════════════════════════════
+def orders_list(cfg: Config, orders: list[Order]) -> InlineKeyboardMarkup:
+    rows = [[btn(f"#{o.id} · {cfg.status_label(o.status)} · {cfg.money(o.amount)}", f"ord:{o.id}")]
+            for o in orders]
+    rows.append(back(cfg))
+    return kb(*rows)
+
+
+def order_card(cfg: Config, order: Order, window_hours: int) -> InlineKeyboardMarkup:
+    from .storage.models import ACTIVATION, AWAITING_CHECK, NEW, PAID, PAID_STATUSES, age_hours
+    rows: list[Row] = []
+    if order.status == NEW:
+        rows.append([btn(f"{cfg.emoji('pay')} Оплатить", f"buy:retry:{order.id}")])
+        rows.append([btn(f"{cfg.emoji('cross')} Отменить", f"cancel:{order.id}")])
+    if order.status in (PAID, ACTIVATION):
+        rows.append([btn(f"{cfg.emoji('scooter')} Активация", f"act:{order.id}:menu")])
+    if (cfg.get("refund.enabled", True) and order.status in PAID_STATUSES
+            and age_hours(order.created_at) <= window_hours):
+        rows.append([btn(f"{cfg.emoji('refund')} Оформить возврат", f"rf:{order.id}")])
+    if order.status == AWAITING_CHECK:
+        rows.append([btn(f"{cfg.emoji('clock')} Ждём проверку оператора", "nop")])
+    rows.append([btn(f"{cfg.emoji('support')} Поддержка", "m:support")])
+    rows.append(back(cfg, "m:orders", "К заказам"))
+    return kb(*rows)
+
+
+def refund_list(cfg: Config, orders: list[Order]) -> InlineKeyboardMarkup:
+    rows = [[btn(f"#{o.id} · {o.title} · {cfg.money(o.amount)}", f"rf:{o.id}")] for o in orders]
+    rows.append(back(cfg))
+    return kb(*rows)
+
+
+def support_menu(cfg: Config) -> InlineKeyboardMarkup:
+    rows: list[Row] = [[btn(f"{cfg.emoji('support')} Написать оператору", "sup:new")]]
+    username = str(cfg.get("brand.support_username", "")).lstrip("@")
+    if username and not username.startswith("your_"):
+        rows.append([url_btn("💬 Написать напрямую", f"https://t.me/{username}")])
+    rows.append(back(cfg))
+    return kb(*rows)
+
+
+def cancel_only(cfg: Config) -> InlineKeyboardMarkup:
+    return kb([btn(f"{cfg.emoji('cross')} Отмена", "m:main")])
+
+
+# ════════════════════════════ админка ═══════════════════════════════════════
+def admin_menu(cfg: Config) -> InlineKeyboardMarkup:
+    return kb(
+        [btn("📥 Заявки на проверке", "a:pending"), btn("📋 Все заказы", "a:orders")],
+        [btn("🎫 Обращения", "a:tickets"), btn("📦 Склад кодов", "a:stock")],
+        [btn("📊 Статистика", "a:stats"), btn("📢 Рассылка", "a:cast")],
+        [btn("🚫 Бан / разбан", "a:ban")],
+        back(cfg),
+    )
+
+
+def admin_orders(cfg: Config, orders: list[Order], source: str = "pending") -> InlineKeyboardMarkup:
+    rows = [[btn(f"#{o.id} · {cfg.status_label(o.status)} · {cfg.money(o.amount)}", f"a:ord:{o.id}")]
+            for o in orders[:20]]
+    rows.append([btn(f"{cfg.emoji('back')} В админку", "a:menu")])
+    return kb(*rows)
+
+
+def admin_order_card(cfg: Config, order: Order) -> InlineKeyboardMarkup:
+    from .storage.models import AWAITING_CHECK, NEW, REFUND_APPROVED, REFUND_REQUESTED
+    rows: list[Row] = []
+    if order.status in (AWAITING_CHECK, NEW):
+        rows.append([btn("✅ Подтвердить оплату", f"a:ok:{order.id}"),
+                     btn("❌ Отклонить", f"a:no:{order.id}")])
+    if order.status == REFUND_REQUESTED:
+        rows.append([btn("✅ Одобрить возврат", f"a:rfok:{order.id}"),
+                     btn("❌ Отказать", f"a:rfno:{order.id}")])
+    if order.status == REFUND_APPROVED:
+        rows.append([btn("💸 Возврат отправлен", f"a:rfdone:{order.id}")])
+    rows.append([btn("✉️ Написать клиенту", f"a:msg:{order.id}"),
+                 btn("🔄 Обновить", f"a:ord:{order.id}")])
+    rows.append([btn(f"{cfg.emoji('back')} В админку", "a:menu")])
+    return kb(*rows)
+
+
+def admin_stock(cfg: Config, counts: dict[str, int], skus: list[str]) -> InlineKeyboardMarkup:
+    rows = [[btn(f"📦 {sku} — {counts.get(sku, 0)} шт · добавить", f"a:stk:{sku}")] for sku in skus]
+    rows.append([btn(f"{cfg.emoji('back')} В админку", "a:menu")])
+    return kb(*rows)
+
+
+def admin_tickets(cfg: Config, tickets) -> InlineKeyboardMarkup:
+    rows = [[btn(f"#{t.id} · {t.kind} · {t.user_name or t.user_id}"[:60], f"a:tk:{t.id}")]
+            for t in tickets[:20]]
+    rows.append([btn(f"{cfg.emoji('back')} В админку", "a:menu")])
+    return kb(*rows)
+
+
+def admin_ticket_card(cfg: Config, ticket) -> InlineKeyboardMarkup:
+    rows: list[Row] = [[btn("✍️ Ответить", f"a:tkr:{ticket.id}")]]
+    if ticket.status == "open":
+        rows.append([btn("✅ Закрыть обращение", f"a:tkc:{ticket.id}")])
+    if ticket.order_id:
+        rows.append([btn(f"🧾 Заказ #{ticket.order_id}", f"a:ord:{ticket.order_id}")])
+    rows.append([btn(f"{cfg.emoji('back')} К обращениям", "a:tickets")])
+    return kb(*rows)
+
+
+def confirm_broadcast(cfg: Config) -> InlineKeyboardMarkup:
+    return kb([btn("📢 Отправить всем", "a:cast:go"), btn("❌ Отмена", "a:menu")])
+
+
+def refund_wallet_prompt(cfg: Config, order_id: int) -> InlineKeyboardMarkup:
+    return kb([btn(f"{cfg.emoji('wallet')} Указать кошелёк", f"rfw:{order_id}")])
+
+
+def ticket_reply_prompt(cfg: Config, ticket_id: int) -> InlineKeyboardMarkup:
+    return kb([btn(f"{cfg.emoji('support')} Ответить оператору", f"sup:re:{ticket_id}")])
