@@ -176,6 +176,17 @@ async def main() -> int:
         check(len(calls) == 3 and calls[2][1] is None,
               "дальше эмодзи вычищаются превентивно, без лишнего запроса")
 
+        print("Работа без CryptoBot")
+        no_crypto = ui.payment_methods(cfg, 1, cryptobot=False)
+        labels = [b.text for row in no_crypto.inline_keyboard for b in row]
+        check(not any("CryptoBot" in t for t in labels),
+              "без токена CryptoBot кнопка счёта не показывается")
+        check(any("кошелёк" in t.lower() for t in labels),
+              "ручной перевод остаётся доступен")
+        check(any("Отменить" in t for t in labels), "заказ по-прежнему можно отменить")
+        check(len(ui.wallets(cfg, 1).inline_keyboard) >= 2,
+              "список кошельков для ручной оплаты не пуст")
+
         print("Самодиагностика")
         from bot.services.cryptobot import CryptoPay
         from bot.services.health import report
