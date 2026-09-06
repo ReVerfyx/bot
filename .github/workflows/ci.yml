@@ -18,6 +18,8 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: pip install --no-input -r requirements.txt
+      - name: Нет секретов в коде
+        run: python -m tests.check_secrets
       - name: Синтаксис и импорты
         run: |
           python -m compileall -q bot
