@@ -109,6 +109,21 @@ async def main() -> int:
         await repo.save_ticket(ticket)
         check(len(await repo.open_tickets()) == 0, "обращение закрывается")
 
+        print("Скрытность админа")
+        from bot import ui  # локальный импорт: нужен только здесь
+        admin_view = {b.callback_data for row in ui.main_menu(cfg, True).inline_keyboard
+                      for b in row if b.callback_data}
+        client_view = {b.callback_data for row in ui.main_menu(cfg, False).inline_keyboard
+                       for b in row if b.callback_data}
+        check(cfg.stealth, "скрытый режим включён по умолчанию")
+        check(admin_view == client_view, "меню админа не отличается от клиентского")
+        check(not any(cb.startswith("a:") for cb in admin_view), "кнопок админки нет в меню")
+        check(not (cfg.get("access.admins") or []), "ID админов не хранятся в config.yml")
+        check(not cfg.get("access.admin_chat_id"), "ID чата админов не хранится в config.yml")
+        check("@" not in cfg.support_contact, "личный аккаунт не подставляется в тексты")
+        check("admin" not in cfg.text("start").lower() and
+              "админ" not in cfg.text("menu").lower(), "меню не упоминает админку")
+
         print("Статистика и роутеры")
         stats = await repo.stats()
         check(stats["orders"] == 2 and stats["done"] == 1, "статистика считается")

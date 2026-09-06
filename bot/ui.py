@@ -50,7 +50,9 @@ def main_menu(cfg: Config, is_admin: bool = False) -> InlineKeyboardMarkup:
         tail.append(btn(f"{e('refund')} Возврат средств", "m:refund"))
     tail.append(btn(f"{e('info')} О сервисе", "m:about"))
     rows.append(tail)
-    if is_admin:
+    # В скрытом режиме кнопки админки нет ни у кого: вход только по /admin
+    # или кодовому слову, чтобы по интерфейсу нельзя было вычислить оператора.
+    if is_admin and not cfg.stealth:
         rows.append([btn(f"{e('admin')} Админ-панель", "a:menu")])
     return kb(*rows)
 
@@ -197,8 +199,8 @@ def refund_list(cfg: Config, orders: list[Order]) -> InlineKeyboardMarkup:
 
 def support_menu(cfg: Config) -> InlineKeyboardMarkup:
     rows: list[Row] = [[btn(f"{cfg.emoji('support')} Написать оператору", "sup:new")]]
-    username = str(cfg.get("brand.support_username", "")).lstrip("@")
-    if username and not username.startswith("your_"):
+    username = str(cfg.get("brand.support_username", "") or "").lstrip("@")
+    if username and not username.startswith("your"):
         rows.append([url_btn("💬 Написать напрямую", f"https://t.me/{username}")])
     rows.append(back(cfg))
     return kb(*rows)

@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 
 from aiogram import F, Router
-from aiogram.filters import BaseFilter, Command
+from aiogram.exceptions import TelegramBadRequest
+from aiogram.filters import BaseFilter, Command, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message, TelegramObject
 
@@ -27,6 +29,14 @@ class IsAdmin(BaseFilter):
         return bool(is_admin)
 
 
+class SecretPhrase(BaseFilter):
+    """Кодовое слово из ADMIN_SECRET — тихий вход без команды в интерфейсе."""
+
+    async def __call__(self, message: Message, cfg: Config) -> bool:
+        secret = cfg.settings.admin_secret
+        return bool(secret) and (message.text or "").strip() == secret
+
+
 router = Router(name="admin")
 router.message.filter(IsAdmin())
 router.callback_query.filter(IsAdmin())
@@ -39,9 +49,22 @@ async def _menu(event: Message | CallbackQuery, cfg: Config, repo: Repository) -
                ui.admin_menu(cfg))
 
 
+@router.message(StateFilter(None), SecretPhrase())
+async def secret_entry(message: Message, cfg: Config, repo: Repository,
+                       state: FSMContext) -> None:
+    """Открыть панель по кодовому слову и стереть само слово из переписки."""
+    await state.clear()
+    with contextlib.suppress(TelegramBadRequest):
+        await message.delete()
+    await _menu(message, cfg, repo)
+
+
 @router.message(Command("admin"))
 async def cmd_admin(message: Message, cfg: Config, repo: Repository, state: FSMContext) -> None:
     await state.clear()
+    if cfg.stealth:                               # не оставляем следа команды в чате
+        with contextlib.suppress(TelegramBadRequest):
+            await message.delete()
     await _menu(message, cfg, repo)
 
 

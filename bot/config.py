@@ -61,6 +61,7 @@ class Settings:
     github_repo: str = ""
     cryptobot_token: str = ""
     cryptobot_api: str = "https://pay.crypt.bot/api"
+    admin_secret: str = ""
     run_duration: int = 20700
     data_dir: Path = ROOT / ".data"
     log_level: str = "INFO"
@@ -79,6 +80,7 @@ class Settings:
             github_repo=(os.getenv("GH_STORE_REPO") or os.getenv("GITHUB_REPOSITORY") or "").strip(),
             cryptobot_token=os.getenv("CRYPTOBOT_TOKEN", "").strip(),
             cryptobot_api=os.getenv("CRYPTOBOT_API", "https://pay.crypt.bot/api").rstrip("/"),
+            admin_secret=os.getenv("ADMIN_SECRET", "").strip(),
             run_duration=int(os.getenv("RUN_DURATION_SECONDS", "20700")),
             data_dir=Path(os.getenv("DATA_DIR", str(ROOT / ".data"))),
             log_level=os.getenv("LOG_LEVEL", "INFO").upper(),
@@ -110,6 +112,19 @@ class Config:
 
     def is_admin(self, user_id: int) -> bool:
         return user_id in self._admins
+
+    @property
+    def stealth(self) -> bool:
+        """Скрытый админ: панель не видна клиентам и не упоминается в интерфейсе."""
+        return bool(self.get("access.stealth", True))
+
+    @property
+    def support_contact(self) -> str:
+        """Публичный контакт поддержки или нейтральная замена, если он не указан."""
+        username = str(self.get("brand.support_username", "") or "").strip()
+        if username and not username.startswith("@your"):
+            return username
+        return str(self.get("brand.support_fallback", "через поддержку в боте"))
 
     @property
     def admins(self) -> list[int]:
@@ -145,7 +160,7 @@ class Config:
     def _base_vars(self) -> dict[str, str]:
         vars_: dict[str, str] = {
             "brand": str(self.get("brand.name", "")),
-            "support": str(self.get("brand.support_username", "")),
+            "support": self.support_contact,
             "channel": str(self.get("brand.channel_url", "")),
             "reviews": str(self.get("brand.reviews_url", "")),
             "currency": self.currency,

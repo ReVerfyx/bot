@@ -58,6 +58,7 @@ jobs:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           ADMIN_IDS: ${{ secrets.ADMIN_IDS }}
           ADMIN_CHAT_ID: ${{ secrets.ADMIN_CHAT_ID }}
+          ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
           CRYPTOBOT_TOKEN: ${{ secrets.CRYPTOBOT_TOKEN }}
           GH_STORE_TOKEN: ${{ secrets.GH_STORE_TOKEN || github.token }}
           GH_STORE_REPO: ${{ github.repository }}
