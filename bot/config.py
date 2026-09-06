@@ -162,6 +162,7 @@ class Config:
             "brand": str(self.get("brand.name", "")),
             "support": self.support_contact,
             "channel": str(self.get("brand.channel_url", "")),
+            "backup": str(self.get("brand.backup_url", "")),
             "reviews": str(self.get("brand.reviews_url", "")),
             "currency": self.currency,
         }

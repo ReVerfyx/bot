@@ -82,10 +82,12 @@ def about_menu(cfg: Config) -> InlineKeyboardMarkup:
     links: Row = []
     if cfg.get("brand.channel_url"):
         links.append(url_btn("📣 Канал", str(cfg.get("brand.channel_url"))))
-    if cfg.get("brand.reviews_url"):
-        links.append(url_btn("⭐️ Отзывы", str(cfg.get("brand.reviews_url"))))
+    if cfg.get("brand.backup_url"):
+        links.append(url_btn("🔁 Переходник", str(cfg.get("brand.backup_url"))))
     if links:
         rows.append(links)
+    if cfg.get("brand.reviews_url"):
+        rows.append([url_btn("⭐️ Отзывы", str(cfg.get("brand.reviews_url")))])
     rows.append(back(cfg))
     return kb(*rows)
 
