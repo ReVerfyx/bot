@@ -12,9 +12,17 @@ TTL = 600
 
 
 class Rates:
-    def __init__(self, crypto: CryptoPay, fallback: float = 95.0) -> None:
+    """Курс берётся у CryptoBot, а без него — из запасных значений конфига.
+
+    Запасной курс важен именно тогда, когда CryptoBot не подключён: клиент
+    всё равно должен видеть, сколько монет отправлять на кошелёк.
+    """
+
+    def __init__(self, crypto: CryptoPay, fallback: dict[str, float] | float | None = None) -> None:
         self.crypto = crypto
-        self.fallback = fallback
+        if isinstance(fallback, (int, float)):     # старый формат: одно число для USDT
+            fallback = {"USDT": float(fallback)}
+        self.fallback = {str(k).upper(): float(v) for k, v in (fallback or {}).items()}
         self._cache: dict[str, tuple[float, float]] = {}
 
     async def rub_per(self, asset: str) -> float:
@@ -24,7 +32,10 @@ class Rates:
             return cached[0]
         rate = await self.crypto.rate(asset, "RUB") if self.crypto.enabled else None
         if not rate:
-            rate = self.fallback if asset in {"USDT", "USDC"} else 0.0
+            rate = self.fallback.get(asset, 0.0)
+            if not rate:
+                log.warning("Нет курса для %s — клиенту покажем сумму только в рублях. "
+                            "Добавь монету в payment.manual_rates_fallback", asset)
         if rate:
             self._cache[asset] = (rate, time.time())
         return rate

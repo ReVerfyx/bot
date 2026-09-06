@@ -5,6 +5,37 @@
 
 ---
 
+## Быстрые ссылки
+
+**Вставить секрет** (по одному, кнопка «New repository secret»):
+<https://github.com/ReVerfyx/bot/settings/secrets/actions/new>
+
+| Куда | Ссылка |
+|---|---|
+| Список уже добавленных секретов | <https://github.com/ReVerfyx/bot/settings/secrets/actions> |
+| Запустить бота вручную | <https://github.com/ReVerfyx/bot/actions/workflows/bot.yml> |
+| Логи запусков | <https://github.com/ReVerfyx/bot/actions> |
+| Смержить ветку в `main` | <https://github.com/ReVerfyx/bot/compare/main...claude/telegram-yandex-go-bot-okq709> |
+| Отредактировать `config.yml` в вебе | <https://github.com/ReVerfyx/bot/edit/claude/telegram-yandex-go-bot-okq709/config.yml> |
+| Видимость репозитория | <https://github.com/ReVerfyx/bot/settings> |
+
+**Где взять сами значения:** [@BotFather](https://t.me/BotFather) — токен бота ·
+[@CryptoBot](https://t.me/CryptoBot) — токен Crypto Pay ·
+[@userinfobot](https://t.me/userinfobot) — свой Telegram ID ·
+[@RawDataBot](https://t.me/RawDataBot) — `file_id` стикеров и `custom_emoji_id`
+
+**Минимум для запуска — два секрета:**
+
+| Имя секрета | Значение |
+|---|---|
+| `BOT_TOKEN` | токен от BotFather |
+| `ADMIN_IDS` | `716962014` |
+
+`CRYPTOBOT_TOKEN` добавляется в любой момент — приём криптоплатежей через
+CryptoBot включится сам, перезапускать и править ничего не нужно.
+
+---
+
 ## Шаг 1. Приватный репозиторий ✅
 
 Уже сделано — репозиторий приватный. Так и должно быть: бот хранит заказы, адреса
@@ -96,19 +127,30 @@
 
 ---
 
-## Шаг 8. Кошельки для ручной оплаты
+## Шаг 8. Кошелёк для ручной оплаты
 
-Адреса берёшь в своём кошельке (Trust Wallet, Tonkeeper, Bybit, Telegram Wallet — любой)
-кнопкой «Получить / Receive». Скопируй адрес **вместе с сетью**:
+Ручная оплата принимается **только в сети TON** — двумя монетами:
 
-| Монета | Сеть | Как выглядит адрес |
+| Монета | Сеть | Адрес |
 |---|---|---|
-| USDT | TRC-20 (Tron) | начинается с `T`, 34 символа |
 | USDT | TON | начинается с `UQ` или `EQ` |
-| BTC | Bitcoin | начинается с `bc1`, `1` или `3` |
+| TON | TON | тот же самый адрес |
 
-Вписываются в `config.yml → payment.manual.wallets` вместо заглушек `TXXXX…`.
-Сеть в поле `note` указывай явно — иначе клиенты будут слать в TON на TRC-20 адрес.
+Адрес нужен **один**: это один TON-кошелёк, на который приходят обе монеты.
+Берётся в Tonkeeper, Telegram Wallet или любом другом TON-кошельке кнопкой
+«Получить / Receive».
+
+Вписывается в `config.yml → payment.manual.wallets` вместо заглушек `UQXXXX…` —
+в оба пункта один и тот же адрес.
+
+⚠️ Формулировку про сеть в поле `note` не убирай. USDT существует в десятке
+сетей, и перевод, отправленный на TON-адрес из TRC-20 или ERC-20, **теряется
+безвозвратно** — вернуть его нельзя ни тебе, ни бирже.
+
+**CryptoBot этим не ограничен:** счёт можно оплатить любой монетой, включённой
+в твоём приложении Crypto Pay (BTC, ETH, TON, USDT и остальные) — клиент
+выбирает сам. Настройка `payment.cryptobot.asset` оставлена пустой; впишешь
+туда `"USDT,TON"` — сузишь до этих двух.
 
 ---
 

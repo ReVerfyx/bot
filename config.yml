@@ -219,28 +219,33 @@ split:
 # ═══════════════════════════════════════════════════════════════════════════
 payment:
   order_ttl_minutes: 120         # через сколько неоплаченный заказ протухает
-  manual_rate_fallback: 95.0     # курс ₽ за 1 USDT, если API курса недоступен
+  # Курс ₽ за 1 монету, если API курса недоступен. Держи примерно актуальным:
+  # по нему клиенту показывается сумма в крипте при ручном переводе.
+  manual_rates_fallback:
+    USDT: 95.0
+    TON: 250.0
   cryptobot:
     enabled: true
-    asset: "USDT"                # актив для оплаты
+    # Чем можно оплатить счёт. ПУСТО = любой монетой, включённой в приложении
+    # CryptoBot (BTC, TON, USDT, ETH и прочие) — клиент выбирает сам.
+    # Ограничить: перечислить через запятую, например "USDT,TON".
+    asset: ""
     invoice_in_fiat: true        # счёт выставляется в ₽, платится криптой
     expires_in: 3600
   manual:
     enabled: true
     require_proof: true          # требовать хеш транзакции / скриншот
+    # Принимаем только сеть TON. Адрес у обоих кошельков один и тот же —
+    # это один TON-кошелёк, просто монеты разные.
     wallets:
-      - title: "USDT · TRC-20"
-        asset: "USDT"
-        address: "TXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-        note: "Сеть Tron (TRC-20). Комиссию сети оплачивает отправитель."
       - title: "USDT · TON"
         asset: "USDT"
         address: "UQXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-        note: "Сеть TON. Обязательно проверь сеть перед отправкой."
-      - title: "BTC"
-        asset: "BTC"
-        address: "bc1qxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-        note: "Сеть Bitcoin."
+        note: "Только сеть TON. Перевод из другой сети (TRC-20, ERC-20) будет потерян."
+      - title: "TON"
+        asset: "TON"
+        address: "UQXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+        note: "Нативный TON. Комиссию сети оплачивает отправитель."
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  5. ВОЗВРАТЫ
@@ -297,7 +302,7 @@ texts:
 
     • Работаем с 2024 года
     • Каждый заказ проходит ручную проверку оператором
-    • Оплата криптовалютой: USDT (TRC-20 / TON), BTC
+    • Оплата криптовалютой: USDT и TON — <b>только в сети TON</b>
     • Возврат средств: $support
 
     $e_star Канал: $channel

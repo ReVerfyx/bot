@@ -57,10 +57,14 @@ class CryptoPay:
             "allow_anonymous": "true",
         }
         if in_fiat:
-            params.update({"currency_type": "fiat", "fiat": fiat, "amount": f"{amount:.2f}",
-                           "accepted_assets": asset})
+            params.update({"currency_type": "fiat", "fiat": fiat, "amount": f"{amount:.2f}"})
+            # без accepted_assets счёт можно оплатить любой монетой, включённой
+            # в приложении CryptoBot; список сужаем, только если он задан явно
+            if asset:
+                params["accepted_assets"] = asset
         else:
-            params.update({"currency_type": "crypto", "asset": asset, "amount": f"{amount:.6f}"})
+            params.update({"currency_type": "crypto", "asset": asset or "USDT",
+                           "amount": f"{amount:.6f}"})
         result = await self._call("createInvoice", **params)
         if not result:
             return None

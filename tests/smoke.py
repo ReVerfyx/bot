@@ -187,19 +187,48 @@ async def main() -> int:
         check(len(ui.wallets(cfg, 1).inline_keyboard) >= 2,
               "список кошельков для ручной оплаты не пуст")
 
+        print("Монеты и сети")
+        from bot.services.cryptobot import CryptoPay
+        from bot.services.rates import Rates
+        manual = cfg.get("payment.manual.wallets") or []
+        assets = {str(w.get("asset", "")).upper() for w in manual}
+        check(assets == {"USDT", "TON"}, f"ручная оплата только USDT и TON, а не {assets}")
+        check(all("TON" in str(w.get("note", "")) for w in manual),
+              "у каждого кошелька в примечании названа сеть TON")
+        check(len({str(w.get("address")) for w in manual}) == 1,
+              "обе монеты приходят на один и тот же TON-адрес")
+        check(not str(cfg.get("payment.cryptobot.asset", "")).strip(),
+              "CryptoBot не ограничен списком монет")
+
+        rates = Rates(CryptoPay(""), cfg.get("payment.manual_rates_fallback"))
+        check(await rates.rub_per("TON") > 0, "запасной курс есть и для TON")
+        check(await rates.rub_per("USDT") > 0, "запасной курс есть и для USDT")
+        check(await rates.convert(2000, "TON") > 0,
+              "сумма в TON считается даже без подключённого CryptoBot")
+        check(await rates.rub_per("DOGE") == 0, "для неизвестной монеты курса нет, а не мусор")
+        check(Rates(CryptoPay(""), 95.0).fallback == {"USDT": 95.0},
+              "старый формат курса одним числом ещё понимается")
+
         print("Самодиагностика")
         from bot.services.cryptobot import CryptoPay
         from bot.services.health import report
         text = await report(cfg, repo, CryptoPay(""), None, 20700)
         check("Диагностика" in text, "сводка формируется без обращения к сети")
         check("заглушки не заменены" in text, "ловит незаполненные адреса кошельков")
-        check("USDT · TRC-20" in text and "BTC" in text,
-              "видит заглушки и в верхнем, и в нижнем регистре")
+        check("USDT · TON" in text, "называет, какие именно кошельки не заполнены")
         check("данные пропадут при рестарте" in text,
               "предупреждает о локальном хранилище вместо GitHub Issues")
         check("только ручная оплата" in text, "сообщает, что CryptoBot не подключён")
+
+        real = list(cfg.get("payment.manual.wallets") or [])
         cfg.data["payment"]["manual"]["wallets"] = [
-            {"title": "USDT · TRC-20", "asset": "USDT", "address": "TReal1Address2Here3"}]
+            {"title": "TON", "asset": "TON", "address": "uqxxxxxxxxxxxxlowercase"}]
+        lower = await report(cfg, repo, CryptoPay(""), None, 0)
+        check("заглушки не заменены" in lower, "ловит заглушку и в нижнем регистре")
+        cfg.data["payment"]["manual"]["wallets"] = real
+
+        cfg.data["payment"]["manual"]["wallets"] = [
+            {"title": "USDT · TON", "asset": "USDT", "address": "UQReal1Address2Here3"}]
         ok = await report(cfg, repo, CryptoPay("1:x"), None, 0)
         check("заглушки не заменены" not in ok, "с настоящими адресами замечаний нет")
         check("подключён" in ok, "видит подключённый CryptoBot")

@@ -65,7 +65,8 @@ async def run() -> None:
 
     crypto = CryptoPay(settings.cryptobot_token, settings.cryptobot_api)
     await crypto.start()
-    rates = Rates(crypto, float(cfg.get("payment.manual_rate_fallback", 95.0)))
+    rates = Rates(crypto, cfg.get("payment.manual_rates_fallback")
+                  or cfg.get("payment.manual_rate_fallback"))
 
     bot = Bot(settings.bot_token,
               default=DefaultBotProperties(parse_mode=ParseMode.HTML, link_preview_is_disabled=True))
