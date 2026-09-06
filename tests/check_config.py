@@ -79,7 +79,8 @@ def main() -> int:
                                      "ticket_id", "text", "user_id", "user_name", "method",
                                      "created", "extra", "wallet_title", "crypto_amount",
                                      "address", "note", "count", "sku", "ok", "fail", "users",
-                                     "orders", "done", "pending", "revenue", "state", "tickets")})
+                                     "orders", "done", "pending", "revenue", "state", "tickets",
+                                     "days", "number")})
         if "$" in rendered:
             leftovers = re.findall(r"\$\w+", rendered)
             problems.append(f"texts.{key}: неизвестные плейсхолдеры {leftovers}")

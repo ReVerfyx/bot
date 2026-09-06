@@ -109,6 +109,22 @@ async def main() -> int:
         await repo.save_ticket(ticket)
         check(len(await repo.open_tickets()) == 0, "обращение закрывается")
 
+        print("Доступ к панели")
+        owner = 716962014
+        cfg.settings.admin_ids = [owner, 111111111]
+        solo = Config.load(cfg.settings)
+        check(solo.owner_id == owner, "владелец — первый ID из ADMIN_IDS")
+        check(solo.is_admin(owner), "владелец в панель проходит")
+        check(not solo.is_admin(111111111), "второй админ в панель НЕ проходит")
+        check(not solo.is_admin(999), "посторонний в панель не проходит")
+        check(len(solo.admins) == 2, "уведомления при этом получают оба")
+        solo.data["access"]["owner_only"] = False
+        check(solo.is_admin(111111111), "флаг owner_only снимает ограничение")
+        solo.data["access"]["owner_only"] = True
+        cfg.settings.admin_ids = []
+        empty = Config.load(cfg.settings)
+        check(not empty.is_admin(owner), "без ADMIN_IDS панель закрыта для всех")
+
         print("Скрытность админа")
         from bot import ui  # локальный импорт: нужен только здесь
         admin_view = {b.callback_data for row in ui.main_menu(cfg, True).inline_keyboard
@@ -214,21 +230,24 @@ async def main() -> int:
         from bot.services.health import report
         text = await report(cfg, repo, CryptoPay(""), None, 20700)
         check("Диагностика" in text, "сводка формируется без обращения к сети")
-        check("заглушки не заменены" in text, "ловит незаполненные адреса кошельков")
-        check("USDT · TON" in text, "называет, какие именно кошельки не заполнены")
+        check("заглушки не заменены" not in text,
+              "боевой TON-адрес замечаний не вызывает")
         check("данные пропадут при рестарте" in text,
               "предупреждает о локальном хранилище вместо GitHub Issues")
         check("только ручная оплата" in text, "сообщает, что CryptoBot не подключён")
+        owner_view = await report(solo, repo, CryptoPay(""), None, 0)
+        check(f"<code>{owner}</code>" in owner_view, "показывает, кому открыта панель")
+        check("уведомления ещё у 1" in owner_view,
+              "отдельно считает тех, кто получает уведомления без доступа в панель")
 
         real = list(cfg.get("payment.manual.wallets") or [])
         cfg.data["payment"]["manual"]["wallets"] = [
             {"title": "TON", "asset": "TON", "address": "uqxxxxxxxxxxxxlowercase"}]
         lower = await report(cfg, repo, CryptoPay(""), None, 0)
         check("заглушки не заменены" in lower, "ловит заглушку и в нижнем регистре")
+        check("TON" in lower, "называет, какой именно кошелёк не заполнен")
         cfg.data["payment"]["manual"]["wallets"] = real
 
-        cfg.data["payment"]["manual"]["wallets"] = [
-            {"title": "USDT · TON", "asset": "USDT", "address": "UQReal1Address2Here3"}]
         ok = await report(cfg, repo, CryptoPay("1:x"), None, 0)
         check("заглушки не заменены" not in ok, "с настоящими адресами замечаний нет")
         check("подключён" in ok, "видит подключённый CryptoBot")

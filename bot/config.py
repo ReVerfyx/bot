@@ -93,7 +93,10 @@ class Config:
     def __init__(self, data: dict, settings: Settings) -> None:
         self.data = data
         self.settings = settings
-        self._admins = set(settings.admin_ids) | set(self.get("access.admins", []) or [])
+        ordered = list(settings.admin_ids) + [
+            int(x) for x in (self.get("access.admins") or []) if str(x).lstrip("-").isdigit()]
+        self._admins = set(ordered)
+        self._owner = ordered[0] if ordered else 0
         self.admin_chat_id = settings.admin_chat_id or int(self.get("access.admin_chat_id", 0) or 0)
 
     # ── загрузка ────────────────────────────────────────────────────────────
@@ -111,7 +114,21 @@ class Config:
         return _deep_get(self.data, path, default)
 
     def is_admin(self, user_id: int) -> bool:
+        """Доступ к админ-панели.
+
+        При access.owner_only (по умолчанию) панель открыта ровно одному
+        человеку — владельцу. Остальные ID из ADMIN_IDS остаются получателями
+        уведомлений о заказах, но внутрь панели не попадают: подтверждать
+        оплаты, править склад и рассылать может только владелец.
+        """
+        if self.get("access.owner_only", True):
+            return bool(self.owner_id) and user_id == self.owner_id
         return user_id in self._admins
+
+    @property
+    def owner_id(self) -> int:
+        """Владелец — первый ID из ADMIN_IDS (или из access.admins)."""
+        return self._owner
 
     @property
     def stealth(self) -> bool:

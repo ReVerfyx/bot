@@ -199,6 +199,27 @@ class Repository:
                 orders.append(order)
         return orders
 
+    # ── подписка на самокаты ────────────────────────────────────────────────
+    @staticmethod
+    def subscription_days_left(order: Order, cfg) -> int:
+        """Сколько дней подписки осталось. 0 — истекла."""
+        from .models import age_hours
+        _, item = cfg.find_product(order.product_id)
+        days = int((item or {}).get("duration_days", 0))
+        if not days:
+            return 0
+        left = days - age_hours(order.paid_at or order.created_at) / 24
+        return max(0, int(left + 0.999))           # неполный день считаем за день
+
+    async def active_subscription(self, user_id: int, cfg) -> Order | None:
+        """Самый свежий оплаченный тариф, срок которого ещё не вышел."""
+        for order in await self.user_orders(user_id, limit=20):
+            if order.kind != "scooter" or order.status not in PAID_STATUSES:
+                continue
+            if self.subscription_days_left(order, cfg) > 0:
+                return order
+        return None
+
     async def refundable_orders(self, user_id: int, window_hours: int) -> list[Order]:
         from .models import age_hours
         return [

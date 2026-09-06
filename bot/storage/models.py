@@ -103,6 +103,7 @@ class Order(_Base):
     refund_wallet: str = ""
     created_at: str = field(default_factory=utcnow)
     updated_at: str = field(default_factory=utcnow)
+    paid_at: str = ""                # момент подтверждения оплаты: от него срок подписки
     history: list[str] = field(default_factory=list)
 
     def log(self, event: str) -> None:

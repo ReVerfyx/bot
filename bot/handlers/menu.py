@@ -51,7 +51,8 @@ async def cb_about(call: CallbackQuery, cfg: Config) -> None:
 
 
 @router.callback_query(F.data.in_({"m:scooters", "m:goods"}))
-async def cb_catalog(call: CallbackQuery, cfg: Config, state: FSMContext) -> None:
+async def cb_catalog(call: CallbackQuery, cfg: Config, repo: Repository, user: User,
+                     state: FSMContext) -> None:
     await state.clear()
     section = "scooters" if call.data == "m:scooters" else "goods"
     items = cfg.section_items(section)
@@ -60,8 +61,22 @@ async def cb_catalog(call: CallbackQuery, cfg: Config, state: FSMContext) -> Non
         await show(call, text, ui.main_menu(cfg, cfg.is_admin(call.from_user.id)))
         await call.answer()
         return
-    intro = cfg.text("scooters_intro") if section == "scooters" else cfg.text("goods_intro")
-    await show(call, intro, ui.catalog(cfg, section))
+
+    if section == "goods":
+        await show(call, cfg.text("goods_intro"), ui.catalog(cfg, section))
+        await call.answer()
+        return
+
+    # в разделе самокатов показываем состояние подписки: от него зависит,
+    # доступна ли разблокировка по номеру
+    subscription = await repo.active_subscription(user.id, cfg)
+    if subscription is None:
+        intro = cfg.text("scooters_intro")
+    else:
+        intro = cfg.text("scooters_intro_active",
+                         days=repo.subscription_days_left(subscription, cfg),
+                         title=subscription.title, order_id=subscription.id)
+    await show(call, intro, ui.catalog(cfg, section, has_subscription=subscription is not None))
     await call.answer()
 
 

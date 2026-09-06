@@ -18,6 +18,16 @@ def _yes(flag: bool) -> str:
     return "✅" if flag else "❌"
 
 
+# следы шаблона: такой текст клиент получать не должен
+STUB_MARKS = ("напиши сюда", "впиши свой", "впиши сюда", "свой текст",
+              "текст инструкции", "текст для")
+
+
+def _is_stub(text: str) -> bool:
+    lowered = (text or "").lower()
+    return not lowered.strip() or any(mark in lowered for mark in STUB_MARKS)
+
+
 async def report(cfg: Config, repo: Repository, crypto: CryptoPay,
                  bot: Bot | None = None, run_seconds: int = 0) -> str:
     """Короткая сводка о состоянии. Всё, что может не подняться — с галочкой."""
@@ -33,7 +43,10 @@ async def report(cfg: Config, repo: Repository, crypto: CryptoPay,
     lines += [
         f"{_yes(github)} Хранилище: {storage}",
         f"{_yes(crypto.enabled)} CryptoBot: {'подключён' if crypto.enabled else 'выключен, только ручная оплата'}",
-        f"{_yes(bool(cfg.admins))} Админов: {len(cfg.admins)}",
+        f"{_yes(bool(cfg.owner_id))} Панель: "
+        + (f"только владелец <code>{cfg.owner_id}</code>" if cfg.get("access.owner_only", True)
+           else f"все админы ({len(cfg.admins)})")
+        + (f" · уведомления ещё у {len(cfg.admins) - 1}" if len(cfg.admins) > 1 else ""),
         f"{_yes(bool(cfg.admin_chat_id))} Чат заявок: "
         f"{'<code>' + str(cfg.admin_chat_id) + '</code>' if cfg.admin_chat_id else 'нет, заявки идут в личку'}",
     ]
@@ -43,6 +56,14 @@ async def report(cfg: Config, repo: Repository, crypto: CryptoPay,
     unset = [w.get("title") for w in wallets if "xxxx" in str(w.get("address", "")).lower()]
     lines.append(f"{_yes(not unset)} Кошельки: {len(wallets)} шт"
                  + (f" — <b>заглушки не заменены: {', '.join(map(str, unset))}</b>" if unset else ""))
+
+    # тексты, которые клиент получает после активации, легко забыть заполнить
+    stubs = [str(i.get("id")) for i in cfg.section_items("scooters") + cfg.section_items("goods")
+             if _is_stub(str(i.get("instructions", "")))]
+    if _is_stub(str(cfg.get("split.instructions", ""))):
+        stubs.append("split")
+    lines.append(f"{_yes(not stubs)} Тексты активации: "
+                 + (f"<b>заглушки у {', '.join(stubs)}</b>" if stubs else "заполнены"))
 
     scooters = len(cfg.section_items("scooters"))
     goods = len(cfg.section_items("goods"))

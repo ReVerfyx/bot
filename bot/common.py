@@ -11,7 +11,7 @@ from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
 
 from .config import Config
 from .storage import Order, Repository
-from .storage.models import ACTIVATION, PAID
+from .storage.models import DONE, PAID, utcnow
 from . import ui
 
 log = logging.getLogger(__name__)
@@ -131,7 +131,11 @@ async def notify_order(bot: Bot, cfg: Config, order: Order, header: str = "") ->
 
 # ════════════════════════ выдача после подтверждения ════════════════════════
 async def confirm_payment(bot: Bot, cfg: Config, repo: Repository, order: Order) -> Order:
-    """Оператор подтвердил оплату: резервируем код и открываем клиенту активацию."""
+    """Оператор подтвердил оплату: выдаём код и включаем подписку.
+
+    Для тарифов на самокаты с этого момента идёт отсчёт duration_days, а сама
+    разблокировка живёт в разделе «Самокаты» и доступна весь срок подписки.
+    """
     _, item = cfg.find_product(order.product_id)
     sku = str((item or {}).get("sku") or "")
     if sku and not order.code:
@@ -139,15 +143,28 @@ async def confirm_payment(bot: Bot, cfg: Config, repo: Repository, order: Order)
         if code:
             order.code = code
             order.log(f"выдан код со склада {sku}")
+
     order.status = PAID
+    order.paid_at = utcnow()
     await repo.save_order(order, event="оплата подтверждена оператором")
 
     await send_sticker(bot, cfg, order.user_id, "paid")
-    await safe_send(
-        bot, order.user_id,
-        cfg.text("order_confirmed", order_id=order.id, title=order.title),
-        ui.activation_menu(cfg, order.id),
-    )
-    order.status = ACTIVATION
-    await repo.save_order(order, event="ждём данные от клиента")
+    days = int((item or {}).get("duration_days", 0))
+    if order.kind == "scooter" and days:
+        await safe_send(
+            bot, order.user_id,
+            cfg.text("subscription_active", order_id=order.id, title=order.title, days=days),
+            ui.unlock_now(cfg),
+        )
+    else:
+        await safe_send(
+            bot, order.user_id,
+            cfg.text("order_confirmed", order_id=order.id, title=order.title),
+            ui.order_open(cfg, order.id),
+        )
+    if order.code:
+        await safe_send(bot, order.user_id, cfg.text("activation_code", code=order.code))
+
+    order.status = DONE
+    await repo.save_order(order, event="доступ выдан клиенту")
     return order

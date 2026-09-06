@@ -27,8 +27,19 @@ log = logging.getLogger(__name__)
 
 
 class IsAdmin(BaseFilter):
-    async def __call__(self, event: TelegramObject, is_admin: bool = False) -> bool:
-        return bool(is_admin)
+    """Пропускает в панель только владельца — см. Config.is_admin."""
+
+    async def __call__(self, event: TelegramObject, is_admin: bool = False,
+                       cfg: Config | None = None) -> bool:
+        if is_admin:
+            return True
+        # чужая попытка постучаться в панель — заметный след в логе смены
+        user = getattr(event, "from_user", None)
+        text = getattr(event, "text", "") or getattr(event, "data", "") or ""
+        if user and cfg and str(text).startswith(("/admin", "/health")):
+            log.warning("Отказ в доступе к панели: %s (@%s) прислал %r",
+                        user.id, user.username or "—", str(text)[:40])
+        return False
 
 
 class SecretPhrase(BaseFilter):

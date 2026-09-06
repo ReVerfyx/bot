@@ -69,8 +69,13 @@ def main_menu(cfg: Config, is_admin: bool = False) -> InlineKeyboardMarkup:
     return kb(*rows)
 
 
-def catalog(cfg: Config, section: str) -> InlineKeyboardMarkup:
+def catalog(cfg: Config, section: str, has_subscription: bool = False) -> InlineKeyboardMarkup:
     rows: list[Row] = []
+    if section == "scooters":
+        # разблокировка первой строкой: с подпиской это главное действие раздела
+        rows.append([btn(f"{cfg.emoji('scooter')} Разблокировать самокат", "sc:unlock",
+                         cfg.style("success" if has_subscription else None),
+                         cfg.icon("scooter"))])
     for item in cfg.section_items(section):
         emoji = item.get("emoji") or cfg.emoji("bag")
         badge = f" · {item['badge']}" if item.get("badge") else ""
@@ -153,14 +158,22 @@ def manual_keyboard(cfg: Config, order_id: int) -> InlineKeyboardMarkup:
 
 
 # ════════════════════════════ активация ═════════════════════════════════════
-def activation_menu(cfg: Config, order_id: int) -> InlineKeyboardMarkup:
-    """Меню, которое открывается клиенту после подтверждения оплаты."""
+def unlock_now(cfg: Config) -> InlineKeyboardMarkup:
+    """Клиенту сразу после подтверждения оплаты подписки."""
     return kb(
-        [btn(f"{cfg.emoji('scooter')} Отправить номер самоката", f"act:{order_id}:num",
-             cfg.style("primary"), cfg.icon("scooter"))],
-        [btn(f"{cfg.emoji('photo')} Отправить скриншот", f"act:{order_id}:pic",
-             icon=cfg.icon("photo"))],
+        [btn(f"{cfg.emoji('scooter')} Разблокировать самокат", "sc:unlock",
+             cfg.style("success"), cfg.icon("scooter"))],
         [btn(f"{cfg.emoji('support')} Нужна помощь", "m:support")],
+        back(cfg),
+    )
+
+
+def unlock_again(cfg: Config) -> InlineKeyboardMarkup:
+    """После ответа на введённый номер: попробовать ещё раз или в поддержку."""
+    return kb(
+        [btn(f"{cfg.emoji('scooter')} Ввести другой номер", "sc:unlock",
+             cfg.style("primary"), cfg.icon("scooter"))],
+        [btn(f"{cfg.emoji('support')} Поддержка", "m:support")],
         back(cfg),
     )
 
@@ -209,8 +222,8 @@ def order_card(cfg: Config, order: Order, window_hours: int) -> InlineKeyboardMa
                          cfg.style("success"), cfg.icon("pay"))])
         rows.append([btn(f"{cfg.emoji('cross')} Отменить", f"cancel:{order.id}",
                          cfg.style("danger"), cfg.icon("cross"))])
-    if order.status in (PAID, ACTIVATION):
-        rows.append([btn(f"{cfg.emoji('scooter')} Активация", f"act:{order.id}:menu",
+    if order.kind == "scooter" and order.status in PAID_STATUSES:
+        rows.append([btn(f"{cfg.emoji('scooter')} Разблокировать самокат", "sc:unlock",
                          cfg.style("primary"), cfg.icon("scooter"))])
     if (cfg.get("refund.enabled", True) and order.status in PAID_STATUSES
             and age_hours(order.created_at) <= window_hours):
